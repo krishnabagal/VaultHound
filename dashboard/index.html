@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VaultHound — Scan. Detect. Protect.</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Rajdhani:wght@600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;--bg2:#0d1117;--bg3:#161b27;--bg4:#1c2333;
+  --border:#1e2d45;--border2:#263348;
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --critical:#f85149;--high:#f0883e;--medium:#d29922;--low:#3fb950;
+  --secret:#bc8cff;--misc:#39d353;
+  --accent:#ff6b35;--accent2:#ff8c5a;
+}
+body{
+  font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;overflow-x:hidden;
+  background-image:linear-gradient(rgba(255,107,53,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,53,.03) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── LOADING SCREEN ─────────────────────────────────── */
+#loadingScreen{
+  position:fixed;inset:0;z-index:9999;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .5s ease;
+}
+#loadingScreen.fade-out{opacity:0;pointer-events:none}
+.load-logo-wrap{display:flex;align-items:center;gap:20px;margin-bottom:32px;animation:loadPop .6s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes loadPop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+/* Logo box on loading — background matches the logo image exactly */
+.load-dog-box{
+  width:88px;height:88px;border-radius:18px;
+  background:#232429;
+  border:2px solid rgba(255,107,53,.55);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 40px rgba(255,107,53,.6),0 0 80px rgba(255,107,53,.22);
+  animation:dogGlow 2s ease-in-out infinite;flex-shrink:0;
+  overflow:hidden;
+}
+@keyframes dogGlow{0%,100%{box-shadow:0 0 40px rgba(255,107,53,.6),0 0 80px rgba(255,107,53,.22)}50%{box-shadow:0 0 70px rgba(255,107,53,.9),0 0 130px rgba(255,107,53,.38)}}
+.load-name-wrap{display:flex;flex-direction:column;gap:5px}
+/* IMPACTFUL name — Rajdhani Bold, tight tracking */
+.load-name{
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:52px;
+  line-height:1;letter-spacing:-.02em;color:var(--text);white-space:nowrap;
+}
+.load-name .vh{color:var(--text)}
+.load-name .accent{color:var(--accent)}
+/* tagline — mono caps, spaced */
+.load-tag{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  letter-spacing:.28em;text-transform:uppercase;color:var(--text3);
+  padding-left:2px;
+}
+.load-bar-wrap{width:280px;height:2px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.load-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .3s ease;box-shadow:0 0 10px rgba(255,107,53,.6)}
+.load-status{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em;min-height:18px}
+
+/* ── HEADER ─────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2rem;height:56px;
+  background:rgba(7,9,15,.97);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;backdrop-filter:blur(14px);
+}
+/* Logo: SVG icon + Rajdhani name, no gap between Vault and Hound */
+.logo{display:flex;align-items:center;gap:11px;text-decoration:none}
+.logo-ic{
+  width:40px;height:40px;border-radius:10px;
+  background:#232429;
+  border:1.5px solid rgba(255,107,53,.45);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 14px rgba(255,107,53,.4),0 0 28px rgba(255,107,53,.15);
+  flex-shrink:0;overflow:hidden;
+}
+.logo-text-group{display:flex;flex-direction:column;gap:1px;line-height:1}
+.logo-name{
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:22px;
+  letter-spacing:-.01em;color:var(--text);white-space:nowrap;
+}
+.logo-name .accent{color:var(--accent)}
+.logo-tag{
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--text3);
+  padding-left:1px;
+}
+/* ── HEADER RIGHT ── */
+.hdr-r{display:flex;align-items:center;gap:10px}
+.last-upd{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);padding:4px 10px;border-radius:4px;background:var(--bg3);border:1px solid var(--border);white-space:nowrap}
+/* EagleEye-style refresh: transparent border button, only glows on active/hover */
+.btn-refresh{
+  display:flex;align-items:center;gap:7px;
+  padding:6px 15px;border-radius:6px;
+  background:transparent;
+  color:var(--text2);
+  border:1.5px solid var(--border2);
+  font-size:12px;font-weight:600;cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;letter-spacing:.05em;
+  transition:all .18s ease;
+  position:relative;
+}
+.btn-refresh:hover:not(:disabled){
+  border-color:var(--accent);color:var(--accent);
+  background:rgba(255,107,53,.06);
+  box-shadow:0 0 16px rgba(255,107,53,.25);
+}
+.btn-refresh:active:not(:disabled){
+  background:rgba(255,107,53,.14);
+  box-shadow:0 0 28px rgba(255,107,53,.5);
+  transform:scale(.97);
+}
+.btn-refresh:disabled{opacity:.45;cursor:not-allowed}
+/* The spinning circle icon inside button */
+.refresh-icon{
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid currentColor;border-top-color:transparent;
+  display:inline-block;flex-shrink:0;
+  transition:border-color .18s;
+}
+.btn-refresh.spinning .refresh-icon{animation:spin .65s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--low);box-shadow:0 0 6px var(--low);animation:pulse 2s infinite;flex-shrink:0}
+.live-dot.err{background:var(--critical);box-shadow:0 0 6px var(--critical);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── TABS ───────────────────────────────────────────── */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(7,9,15,.97);padding:0 2rem;position:sticky;top:56px;z-index:99;backdrop-filter:blur(14px)}
+.tab{padding:11px 18px;font-size:12px;font-weight:500;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;transition:.15s;letter-spacing:.03em;user-select:none}
+.tab:hover{color:var(--text2)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* MAIN */
+main{padding:22px 2rem;max-width:1600px;margin:0 auto;width:100%}
+
+/* STAT CARDS */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;
+  transition:border-color .2s,box-shadow .2s;position:relative;overflow:hidden;
+}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,transparent);opacity:.7}
+.stat-card:hover{border-color:var(--border2);box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.stat-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:10px}
+.stat-val{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;line-height:1;color:var(--c,var(--text))}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:5px}
+
+/* PANELS */
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border)}
+.panel-ttl{font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:7px;letter-spacing:.02em}
+.panel-body{padding:16px}.panel-body.np{padding:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid32{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:900px){.grid2,.grid32{grid-template-columns:1fr}}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.b-critical{background:rgba(248,81,73,.15);color:var(--critical);border:1px solid rgba(248,81,73,.3)}
+.b-high{background:rgba(240,136,62,.15);color:var(--high);border:1px solid rgba(240,136,62,.3)}
+.b-medium{background:rgba(210,153,34,.15);color:var(--medium);border:1px solid rgba(210,153,34,.3)}
+.b-low{background:rgba(63,185,80,.15);color:var(--low);border:1px solid rgba(63,185,80,.3)}
+.b-image{background:rgba(255,107,53,.12);color:var(--accent);border:1px solid rgba(255,107,53,.25)}
+.b-repo{background:rgba(188,140,255,.12);color:var(--secret);border:1px solid rgba(188,140,255,.25)}
+.b-fs{background:rgba(57,211,83,.12);color:var(--misc);border:1px solid rgba(57,211,83,.25)}
+
+/* TABLES */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.tbl th{text-align:left;padding:9px 13px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);background:var(--bg3)}
+.tbl td{padding:9px 13px;border-bottom:1px solid var(--border);color:var(--text2)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:10px}
+
+/* SEV BARS */
+.sev-bars{display:flex;flex-direction:column;gap:10px}
+.sev-row{display:flex;align-items:center;gap:10px}
+.sev-lbl{font-size:10px;color:var(--text3);width:54px;text-align:right;letter-spacing:.03em}
+.sev-bg{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.sev-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.sev-cnt{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);min-width:38px}
+
+/* CHART */
+.chart-wrap{position:relative;width:100%;height:210px}
+
+/* AGENTS */
+.agent-list{display:flex;flex-direction:column;gap:8px;padding:12px}
+.agent-card{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:8px;background:var(--bg3);border:1px solid var(--border)}
+.agent-ic{width:34px;height:34px;border-radius:8px;background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.agent-name{font-size:13px;font-weight:600}
+.agent-meta{font-size:10px;color:var(--text3);margin-top:2px}
+.online-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:var(--low);box-shadow:0 0 5px var(--low);animation:pulse 2s infinite;margin-left:auto}
+
+/* EMPTY / SPINNER */
+.empty{text-align:center;padding:44px 20px;color:var(--text3)}
+.empty-icon{font-size:34px;margin-bottom:12px}
+.empty-title{font-size:14px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.sp-wrap{display:flex;align-items:center;justify-content:center;padding:40px}
+.sp{width:28px;height:28px;border-radius:50%;border:2px solid var(--border2);border-top-color:var(--accent);animation:spin .7s linear infinite}
+
+/* DETAIL MODAL */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.78);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px}
+.detail-panel{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;width:100%;max-width:960px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.65)}
+.detail-hdr{padding:15px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;gap:8px}
+.detail-hdr-info{flex:1;min-width:0}
+.detail-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-meta{font-size:10px;color:var(--text3);margin-top:3px;font-family:'IBM Plex Mono',monospace}
+.detail-controls{display:flex;align-items:center;gap:7px;flex-shrink:0;flex-wrap:wrap}
+.sel{padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;outline:none}
+.sel:focus{border-color:var(--accent)}
+.btn-pdf{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:6px;background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.35);color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;transition:all .15s;white-space:nowrap}
+.btn-pdf:hover:not(:disabled){background:rgba(255,107,53,.22);border-color:var(--accent)}
+.btn-pdf:disabled{opacity:.5;cursor:not-allowed}
+.btn-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.btn-close:hover{color:var(--text);border-color:var(--text3)}
+.detail-body{padding:18px;overflow-y:auto;flex:1}
+
+/* Detail inner */
+.res-target{font-size:11px;color:var(--text2);margin-bottom:10px;padding:7px 11px;background:var(--bg3);border-radius:5px;font-family:'IBM Plex Mono',monospace;border-left:3px solid var(--accent);display:flex;align-items:center;gap:8px}
+.sec-title{font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.vtbl{width:100%;border-collapse:collapse;font-size:11px}
+.vtbl th{text-align:left;padding:7px 10px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);background:var(--bg3)}
+.vtbl td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text2)}
+.vtbl tr:last-child td{border-bottom:none}
+.vtbl tr:hover td{background:rgba(255,255,255,.02)}
+.sec-card{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--secret);border-radius:7px;padding:12px 14px;margin-bottom:8px}
+.sec-match{background:rgba(0,0,0,.35);border-radius:4px;padding:7px 10px;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--medium);overflow-x:auto;white-space:pre;border:1px solid var(--border)}
+.line-badge{background:rgba(188,140,255,.15);color:var(--secret);padding:1px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;border:1px solid rgba(188,140,255,.25)}
+
+/* TOAST — bottom-right notifications */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:var(--bg3);border-radius:8px;padding:11px 18px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+  box-shadow:0 8px 30px rgba(0,0,0,.6);
+  transform:translateY(90px);opacity:0;
+  transition:transform .28s cubic-bezier(.34,1.56,.64,1),opacity .28s ease;
+  max-width:320px;display:flex;align-items:center;gap:9px;
+  border:1px solid var(--border2);
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.t-err{border-color:var(--critical);color:var(--critical)}
+.toast.t-info{border-color:var(--accent);color:var(--accent)}
+.toast.t-ok{border-color:var(--low);color:var(--low)}
+</style>
+</head>
+<body>
+
+<!-- VAULTHOUND REAL LOGO — embedded base64 JPEG -->
+<img id="realLogo" src="data:image/jpeg;base64,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" style="display:none" alt="VaultHound" />
+
+<!-- LOADING SCREEN -->
+<div id="loadingScreen">
+  <div class="load-logo-wrap">
+    <div class="load-dog-box" id="loadLogoBox"></div>
+    <div class="load-name-wrap">
+      <div class="load-name"><span class="vh">Vault</span><span class="accent">Hound</span></div>
+      <div class="load-tag">Scan &nbsp;·&nbsp; Detect &nbsp;·&nbsp; Protect</div>
+    </div>
+  </div>
+  <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+  <div class="load-status" id="loadStatus">Initialising…</div>
+</div>
+
+<!-- APP -->
+<div id="appShell" style="visibility:hidden">
+
+<header>
+  <a class="logo" href="/">
+    <div class="logo-ic" id="headerLogoBox"></div>
+    <div class="logo-text-group">
+      <div class="logo-name">Vault<span class="accent">Hound</span></div>
+      <div class="logo-tag">Scan · Detect · Protect</div>
+    </div>
+  </a>
+  <div class="hdr-r">
+    <span class="last-upd" id="lastUpd">Never refreshed</span>
+    <button class="btn-refresh" id="btnRefresh" onclick="manualRefresh()">
+      <span class="refresh-icon" id="refreshIc"></span>
+      Refresh
+    </button>
+    <div class="live-dot" id="liveDot"></div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview',this)">Overview</div>
+  <div class="tab" onclick="switchTab('scans',this)">Scan History</div>
+  <div class="tab" onclick="switchTab('agents',this)">Agents</div>
+</div>
+
+<main>
+  <div id="tab-overview">
+    <div class="stat-grid" id="statGrid"><div class="sp-wrap" style="grid-column:1/-1"><div class="sp"></div></div></div>
+    <div class="grid32">
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-ttl">📈 Severity Trend — Last 14 Days</span></div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-ttl">🎯 Breakdown</span></div>
+        <div class="panel-body" id="sevBreak"><div class="sp-wrap"><div class="sp"></div></div></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-ttl">🔥 Recent Activity</span></div>
+        <div class="panel-body np" id="recentAct"><div class="sp-wrap"><div class="sp"></div></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr"><span class="panel-ttl">🏆 Top Vulnerable Targets</span></div>
+        <div class="panel-body" id="topTgts"><div class="sp-wrap"><div class="sp"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-scans" style="display:none">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-ttl">📋 All Scans</span>
+        <select class="sel" id="typeFilter" onchange="filterScans()">
+          <option value="">All types</option>
+          <option value="image">Image</option>
+          <option value="repo">Repository</option>
+          <option value="filesystem">Filesystem</option>
+        </select>
+      </div>
+      <div class="panel-body np" id="scansTable"><div class="sp-wrap"><div class="sp"></div></div></div>
+    </div>
+  </div>
+
+  <div id="tab-agents" style="display:none">
+    <div class="panel">
+      <div class="panel-hdr"><span class="panel-ttl">🖥️ Registered Agents</span></div>
+      <div class="agent-list" id="agentList"><div class="sp-wrap"><div class="sp"></div></div></div>
+    </div>
+  </div>
+</main>
+
+<!-- DETAIL MODAL -->
+<div class="overlay" id="detailOverlay" style="display:none" onclick="overlayBg(event)">
+  <div class="detail-panel">
+    <div class="detail-hdr">
+      <div class="detail-hdr-info">
+        <div class="detail-title" id="dtTitle">Scan Detail</div>
+        <div class="detail-meta" id="dtMeta"></div>
+      </div>
+      <div class="detail-controls">
+        <label style="font-size:10px;color:var(--text3);white-space:nowrap">Severity:</label>
+        <select class="sel" id="sevFilter" onchange="applyFilter()">
+          <option value="">All</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
+        </select>
+        <button class="btn-pdf" id="pdfBtn" onclick="exportPDF()">⬇ Export PDF</button>
+        <button class="btn-close" onclick="closeDetail()">✕</button>
+      </div>
+    </div>
+    <div class="detail-body" id="dtBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div><!-- /appShell -->
+
+<script>
+// ── LOGO INJECTION ─────────────────────────────────────────────────────────
+(function injectLogos(){
+  const src = document.getElementById('realLogo')?.src;
+  if(!src) return;
+
+  // Loading screen — large, fills the box
+  const lb = document.getElementById('loadLogoBox');
+  if(lb){
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    lb.appendChild(img);
+  }
+  // Header — fills the logo-ic box
+  const hb = document.getElementById('headerLogoBox');
+  if(hb){
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+    hb.appendChild(img);
+  }
+})();
+
+// STATE
+let dashData=null,allScans=[],trendChart=null,currentScan=null,refreshing=false;
+const scanMap={};
+
+// HELPERS
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmtT(iso){if(!iso)return'—';const d=new Date(iso),n=new Date(),s=Math.floor((n-d)/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return d.toLocaleDateString()}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+// TOAST — type: 'info'|'ok'|'err'
+let _toastTimer=null;
+function toast(msg,type='err'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast t-'+type+' show';
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+function tbadge(t){const k=t==='image'?'b-image':t==='repo'?'b-repo':'b-fs';return`<span class="badge ${k}">${t}</span>`}
+function sbadge(s){const k=(s||'').toLowerCase();return`<span class="badge b-${k||'low'}">${s||'?'}</span>`}
+
+// LOADING
+function setLoad(pct,msg){document.getElementById('loadBar').style.width=pct+'%';if(msg)document.getElementById('loadStatus').textContent=msg}
+function hideLoader(){const s=document.getElementById('loadingScreen'),a=document.getElementById('appShell');s.classList.add('fade-out');a.style.visibility='visible';setTimeout(()=>s.style.display='none',500)}
+
+// TABS
+function switchTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');
+  ['overview','scans','agents'].forEach(t=>document.getElementById('tab-'+t).style.display=t===name?'':'none');
+  if(name==='scans')renderScans(allScans);
+  if(name==='agents')renderAgents(dashData?.agents||[]);
+}
+
+// FETCH
+async function fetchData(loader){
+  const dot=document.getElementById('liveDot'),btn=document.getElementById('btnRefresh');
+  btn.disabled=true;btn.classList.add('spinning');
+  try{
+    if(loader)setLoad(30,'Fetching dashboard stats…');
+    const [dr,sr]=await Promise.all([fetch('/api/dashboard'),fetch('/api/scans')]);
+    if(!dr.ok)throw new Error('Server '+dr.status);
+    dashData=await dr.json();
+    const sd=await sr.json();
+    allScans=sd.scans||[];
+    allScans.forEach(s=>scanMap[s.id]=s);
+    if(loader)setLoad(90,'Rendering…');
+    dot.classList.remove('err');
+    document.getElementById('lastUpd').textContent='Updated '+new Date().toLocaleTimeString();
+    renderOverview(dashData);renderScans(allScans);renderAgents(dashData.agents||[]);
+    if(loader){setLoad(100,'Ready!');await sleep(350);hideLoader()}
+    else toast('Data refreshed','ok');
+  }catch(e){
+    dot.classList.add('err');toast('⚠ Cannot reach master: '+e.message,'err');
+    if(loader){setLoad(100,'⚠ Connection failed');await sleep(700);hideLoader();
+      document.getElementById('statGrid').innerHTML=`<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--critical)">⚠ Cannot reach master server<br><span style="font-size:11px;color:var(--text3);margin-top:8px;display:block">Is <code>node master-server/server.js</code> running?</span></div>`;}
+  }finally{btn.disabled=false;btn.classList.remove('spinning');refreshing=false}
+}
+
+async function manualRefresh(){
+  if(refreshing)return;
+  refreshing=true;
+  toast('↻ Refreshing data…','info');
+  await fetchData(false);
+}
+
+// OVERVIEW
+function renderOverview(data){
+  const ov=data.overview||{};
+  const cards=[
+    {lbl:'Total Scans',val:ov.totalScans||0,c:'var(--accent)',sub:'all time'},
+    {lbl:'Active Agents',val:ov.activeAgents||0,c:'var(--accent)',sub:'reporting'},
+    {lbl:'Critical',val:ov.totalCritical||0,c:'var(--critical)',sub:'findings'},
+    {lbl:'High',val:ov.totalHigh||0,c:'var(--high)',sub:'findings'},
+    {lbl:'Medium',val:ov.totalMedium||0,c:'var(--medium)',sub:'findings'},
+    {lbl:'Low',val:ov.totalLow||0,c:'var(--low)',sub:'findings'},
+    {lbl:'Secrets',val:ov.totalSecrets||0,c:'var(--secret)',sub:'exposed'},
+    {lbl:'Misconfigs',val:ov.totalMisconfigs||0,c:'var(--misc)',sub:'found'},
+  ];
+  document.getElementById('statGrid').innerHTML=cards.map(c=>`<div class="stat-card" style="--c:${c.c}"><div class="stat-lbl">${c.lbl}</div><div class="stat-val">${c.val.toLocaleString()}</div><div class="stat-sub">${c.sub}</div></div>`).join('');
+
+  const tot=Math.max((ov.totalCritical||0)+(ov.totalHigh||0)+(ov.totalMedium||0)+(ov.totalLow||0),1);
+  document.getElementById('sevBreak').innerHTML='<div class="sev-bars">'+[
+    {l:'Critical',v:ov.totalCritical||0,c:'var(--critical)'},{l:'High',v:ov.totalHigh||0,c:'var(--high)'},
+    {l:'Medium',v:ov.totalMedium||0,c:'var(--medium)'},{l:'Low',v:ov.totalLow||0,c:'var(--low)'},
+    {l:'Secrets',v:ov.totalSecrets||0,c:'var(--secret)'},{l:'Misconf',v:ov.totalMisconfigs||0,c:'var(--misc)'},
+  ].map(r=>`<div class="sev-row"><div class="sev-lbl">${r.l}</div><div class="sev-bg"><div class="sev-fill" style="width:${Math.round(r.v/tot*100)}%;background:${r.c}"></div></div><div class="sev-cnt">${r.v.toLocaleString()}</div></div>`).join('')+'</div>';
+
+  renderTrend(data.severityTrend||[]);
+
+  const acts=data.recentActivity||[];
+  document.getElementById('recentAct').innerHTML=!acts.length
+    ?'<div class="empty"><div class="empty-icon">📡</div><div class="empty-title">No scans yet</div><div>Start an agent to begin scanning</div></div>'
+    :`<div style="overflow-x:auto"><table class="tbl" style="min-width:520px"><colgroup><col style="width:120px"><col style="width:96px"><col style=""><col style="width:66px"><col style="width:48px"><col style="width:74px"></colgroup>
+      <thead><tr><th>Agent</th><th>Type</th><th>Target</th><th>Critical</th><th>High</th><th>Time</th></tr></thead>
+      <tbody>${acts.map(a=>`<tr>
+        <td class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.hostname||a.agentId)}</td>
+        <td style="white-space:nowrap">${tbadge(a.scanType)}</td>
+        <td class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.target)}">${esc(a.target)}</td>
+        <td style="text-align:center;color:var(--critical);font-family:'IBM Plex Mono',monospace;font-weight:700">${a.critical}</td>
+        <td style="text-align:center;color:var(--high);font-family:'IBM Plex Mono',monospace">${a.high}</td>
+        <td class="mono" style="white-space:nowrap">${fmtT(a.receivedAt)}</td>
+      </tr>`).join('')}</tbody></table></div>`;
+
+  const tgts=data.topTargets||[];
+  document.getElementById('topTgts').innerHTML=!tgts.length
+    ?'<div class="empty"><div class="empty-icon">🎯</div><div class="empty-title">No targets yet</div></div>'
+    :tgts.map(t=>{const mf=Math.max(...tgts.map(x=>x.totalFindings),1);return`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="mono" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%" title="${esc(t.target)}">${esc(t.target)}</span><span style="font-size:11px;color:var(--critical);font-family:'IBM Plex Mono',monospace;font-weight:700">${t.totalFindings}</span></div><div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:100%;border-radius:2px;width:${Math.round(t.totalFindings/mf*100)}%;background:linear-gradient(90deg,var(--critical),var(--high))"></div></div></div>`}).join('');
+}
+
+// TREND CHART
+function renderTrend(trend){
+  if(trendChart){trendChart.destroy();trendChart=null}
+  const c=document.getElementById('trendChart');
+  if(!c||!trend.length)return;
+  trendChart=new Chart(c,{type:'line',data:{labels:trend.map(d=>d.date),datasets:[
+    {label:'Critical',data:trend.map(d=>d.critical),borderColor:'#f85149',backgroundColor:'rgba(248,81,73,.07)',tension:.35,fill:true,pointRadius:2,borderWidth:1.5},
+    {label:'High',data:trend.map(d=>d.high),borderColor:'#f0883e',backgroundColor:'rgba(240,136,62,.05)',tension:.35,fill:true,pointRadius:2,borderWidth:1.5},
+    {label:'Medium',data:trend.map(d=>d.medium),borderColor:'#d29922',backgroundColor:'rgba(210,153,34,.04)',tension:.35,fill:true,pointRadius:2,borderWidth:1.5},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+    x:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#484f58',font:{size:9},maxRotation:45}},
+    y:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#484f58',font:{size:9}},beginAtZero:true}}}});
+}
+
+function filterScans(){const t=document.getElementById('typeFilter').value;renderScans(t?allScans.filter(s=>s.scanType===t):allScans)}
+function renderScans(scans){
+  scans.forEach(s=>scanMap[s.id]=s);
+  if(!scans.length){document.getElementById('scansTable').innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No scans recorded</div><div>Scans appear once agents report</div></div>';return}
+  document.getElementById('scansTable').innerHTML=`<div style="overflow-x:auto;width:100%"><table class="tbl" style="table-layout:auto;min-width:760px">
+    <thead><tr>
+      <th style="width:72px">ID</th>
+      <th style="width:110px">Agent</th>
+      <th style="width:90px">Type</th>
+      <th>Target</th>
+      <th style="width:62px;text-align:center">Crit</th>
+      <th style="width:48px;text-align:center">High</th>
+      <th style="width:48px;text-align:center">Med</th>
+      <th style="width:58px;text-align:center">Secrets</th>
+      <th style="width:62px;text-align:center">Misconf</th>
+      <th style="width:96px">Last Scanned</th>
+      <th style="width:58px"></th>
+    </tr></thead>
+    <tbody>${scans.map(s=>{const sm=s.summary||{};return`<tr>
+      <td class="mono" style="color:var(--text3)">${(s.id||'').slice(0,8)}</td>
+      <td class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px" title="${esc(s.agentId||'')}">${(s.agentId||'').slice(0,12)}</td>
+      <td style="white-space:nowrap">${tbadge(s.scanType)}</td>
+      <td class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px" title="${esc(s.target||'')}">${esc(s.target||'')}</td>
+      <td style="text-align:center;color:var(--critical);font-family:'IBM Plex Mono',monospace;font-weight:700">${sm.criticalCount||0}</td>
+      <td style="text-align:center;color:var(--high);font-family:'IBM Plex Mono',monospace">${sm.highCount||0}</td>
+      <td style="text-align:center;color:var(--medium);font-family:'IBM Plex Mono',monospace">${sm.mediumCount||0}</td>
+      <td style="text-align:center;color:var(--secret);font-family:'IBM Plex Mono',monospace">${sm.secretCount||0}</td>
+      <td style="text-align:center;color:var(--misc);font-family:'IBM Plex Mono',monospace">${sm.misconfigCount||0}</td>
+      <td class="mono" style="white-space:nowrap"><div>${fmtT(s.receivedAt)}</div>${s.firstSeenAt&&s.firstSeenAt!==s.receivedAt?`<div style="font-size:9px;color:var(--text3)">first: ${fmtT(s.firstSeenAt)}</div>`:''}</td>
+      <td style="white-space:nowrap"><button onclick="openDetail('${s.id}')" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;font-family:'IBM Plex Mono',monospace;white-space:nowrap;transition:.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">View</button></td>
+    </tr>`}).join('')}</tbody></table></div>`;
+}
+
+// AGENTS
+function renderAgents(agents){
+  if(!agents.length){document.getElementById('agentList').innerHTML='<div class="empty"><div class="empty-icon">🖥️</div><div class="empty-title">No agents connected</div></div>';return}
+  document.getElementById('agentList').innerHTML=agents.map(a=>`<div class="agent-card"><div class="agent-ic">💻</div><div style="flex:1;min-width:0"><div class="agent-name">${esc(a.hostname)}</div><div class="agent-meta">${esc(a.os)}</div><div class="agent-meta">Last seen: ${fmtT(a.lastSeen)} · v${a.version} · ${a.scanCount||0} scan(s)</div></div><div class="online-dot"></div></div>`).join('');
+}
+
+// DETAIL MODAL
+function openDetail(id){
+  const s=scanMap[id];if(!s)return;
+  currentScan=s;
+  document.getElementById('dtTitle').textContent=s.target||'Scan Detail';
+  document.getElementById('dtMeta').textContent=`${s.scanType} · ${fmtT(s.receivedAt)} · ID: ${s.id}`;
+  document.getElementById('sevFilter').value='';
+  renderDetail('');
+  document.getElementById('detailOverlay').style.display='flex';
+}
+function overlayBg(e){if(e.target===document.getElementById('detailOverlay'))closeDetail()}
+function closeDetail(){document.getElementById('detailOverlay').style.display='none';currentScan=null}
+function applyFilter(){renderDetail(document.getElementById('sevFilter').value)}
+
+function renderDetail(sf){
+  const scan=currentScan;if(!scan)return;
+  const results=scan.trivyReport?.Results||[];let html='';
+  for(const res of results){
+    let vulns=(res.Vulnerabilities||[]),secs=(res.Secrets||[]),miscs=(res.Misconfigurations||[]);
+    if(sf){const f=sf.toUpperCase();vulns=vulns.filter(v=>(v.Severity||'').toUpperCase()===f);secs=secs.filter(s=>(s.Severity||'').toUpperCase()===f);miscs=miscs.filter(m=>(m.Severity||'').toUpperCase()===f)}
+    if(!vulns.length&&!secs.length&&!miscs.length)continue;
+    html+=`<div style="margin-bottom:24px"><div class="res-target">${esc(res.Target||'')} <span style="color:var(--text3);font-size:10px">${res.Type||''}</span></div>`;
+
+    if(vulns.length){
+      html+=`<div class="sec-title">Vulnerabilities (${vulns.length}${sf?' · filtered':''})</div><div style="overflow-x:auto;margin-bottom:16px"><table class="vtbl">
+        <thead><tr><th>CVE ID</th><th>Package</th><th>Installed</th><th>Fixed In</th><th>Severity</th><th>Title</th></tr></thead>
+        <tbody>${vulns.slice(0,300).map(v=>`<tr>
+          <td class="mono" style="color:var(--accent);white-space:nowrap">${esc(v.VulnerabilityID||'')}</td>
+          <td class="mono" style="white-space:nowrap">${esc(v.PkgName||'')}</td>
+          <td class="mono" style="white-space:nowrap">${esc(v.InstalledVersion||'')}</td>
+          <td class="mono" style="white-space:nowrap;color:var(--low)">${esc(v.FixedVersion||'—')}</td>
+          <td>${sbadge(v.Severity)}</td>
+          <td style="font-size:11px;color:var(--text3);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(v.Title||'')}">${esc(v.Title||'')}</td>
+        </tr>`).join('')}${vulns.length>300?`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:10px">…and ${vulns.length-300} more. Use severity filter.</td></tr>`:''}</tbody></table></div>`;
+    }
+
+    if(secs.length){
+      html+=`<div class="sec-title">Secrets Detected (${secs.length}${sf?' · filtered':''})</div>`;
+      html+=secs.map(s=>{
+        const ls=s.StartLine||s.Line||null,le=s.EndLine||ls;
+        const lr=ls?(le&&le!==ls?`L${ls}–${le}`:`L${ls}`):null;
+        return`<div class="sec-card">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${sbadge(s.Severity)}<span style="font-size:12px;font-weight:600;color:var(--text)">${esc(s.Title||s.RuleID||'')}</span></div>
+            <span class="mono" style="color:var(--text3);white-space:nowrap">${esc(s.RuleID||'')}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--text3)">
+            <span>Category: <span style="color:var(--text2)">${esc(s.Category||'—')}</span></span>
+            ${lr?`<span style="display:flex;align-items:center;gap:6px">📍 Line: <span class="line-badge">${lr}</span></span>`:''}
+          </div>
+          ${s.Match?`<div class="sec-match">${esc(s.Match)}</div>`:''}
+        </div>`;
+      }).join('')+'<div style="margin-bottom:8px"></div>';
+    }
+
+    if(miscs.length){
+      html+=`<div class="sec-title">Misconfigurations (${miscs.length}${sf?' · filtered':''})</div><div style="overflow-x:auto;margin-bottom:16px"><table class="vtbl">
+        <thead><tr><th>ID</th><th>Type</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+        <tbody>${miscs.map(m=>`<tr>
+          <td class="mono" style="white-space:nowrap;color:var(--accent)">${esc(m.ID||'')}</td>
+          <td style="white-space:nowrap">${esc(m.Type||'—')}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m.Title||'')}">${esc(m.Title||'')}</td>
+          <td>${sbadge(m.Severity)}</td>
+          <td><span class="badge" style="background:rgba(255,255,255,.06);color:var(--text3);border:1px solid var(--border)">${esc(m.Status||'')}</span></td>
+        </tr>`).join('')}</tbody></table></div>`;
+    }
+    html+='</div>';
+  }
+
+  if(!html)html=`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">${sf?'No '+sf+' findings':'No findings'}</div><div>${sf?'Try a different severity filter':'This scan came back clean'}</div></div>`;
+  document.getElementById('dtBody').innerHTML=html;
+}
+
+// PDF EXPORT — clean white professional report
+async function exportPDF(){
+  const scan=currentScan;if(!scan)return;
+  const btn=document.getElementById('pdfBtn');btn.textContent='⏳ Generating…';btn.disabled=true;
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),m=15;
+    let y=m;
+
+        // helper to add page footer and handle page breaks
+    const addFooter=()=>{
+      const pc=doc.getNumberOfPages();
+      for(let i=1;i<=pc;i++){
+        doc.setPage(i);
+        // thin orange bottom line
+        doc.setDrawColor(255,107,53);doc.setLineWidth(.4);doc.line(m,H-10,W-m,H-10);
+        doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+        doc.text('VaultHound  ·  Scan. Detect. Protect.',m,H-6);
+        doc.text(`Page ${i} of ${pc}`,W-m,H-6,{align:'right'});
+        doc.setTextColor(180,180,180);
+        doc.text('CONFIDENTIAL',W/2,H-6,{align:'center'});
+      }
+    };
+    const chkY=(need)=>{if(y+need>H-18){doc.addPage();y=m+4;}};
+
+    // ═══════════════════════════════════════════════════════════
+    // PAGE 1 HEADER
+    // ═══════════════════════════════════════════════════════════
+    // Orange top stripe
+    doc.setFillColor(255,107,53);doc.rect(0,0,W,1.5,'F');
+    // Orange left sidebar stripe
+    doc.setFillColor(255,107,53);doc.rect(0,0,1.5,H,'F');
+
+    // Product name — flush to left margin, no logo
+    doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(30,30,30);
+    doc.text('Vault',m,17);
+    const vw=doc.getTextWidth('Vault');
+    doc.setTextColor(255,107,53);
+    doc.text('Hound',m+vw,17);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,120,120);
+    doc.text('SCAN  ·  DETECT  ·  PROTECT',m,23);
+
+    // Report title (right-aligned)
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,107,53);
+    doc.text('VULNERABILITY SCAN REPORT',W-m,12,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,120,120);
+    doc.text(new Date().toLocaleString(),W-m,18,{align:'right'});
+
+    // Divider line — below the tallest element (logo is 4+22=26mm)
+    doc.setDrawColor(230,230,230);doc.setLineWidth(.4);doc.line(m,32,W-m,32);
+    y=38;
+
+    // ── Target info box ──────────────────────────────────────────────────────
+    const sm=scan.summary||{};
+    // Light grey info card
+    doc.setFillColor(248,249,250);doc.roundedRect(m,y,W-m*2,30,2,2,'F');
+    doc.setDrawColor(220,220,220);doc.setLineWidth(.3);doc.roundedRect(m,y,W-m*2,30,2,2,'S');
+    // Orange left accent bar on info box
+    doc.setFillColor(255,107,53);doc.roundedRect(m,y,3,30,1.5,1.5,'F');
+
+    const infoPairs=[
+      ['Target', String(scan.target||'—')],
+      ['Scan Type', String(scan.scanType||'—').toUpperCase()],
+      ['Agent ID', String(scan.agentId||'—').slice(0,40)],
+      ['Scanned At', scan.receivedAt?new Date(scan.receivedAt).toLocaleString():'—'],
+      ['First Seen', scan.firstSeenAt?new Date(scan.firstSeenAt).toLocaleString():'—'],
+    ];
+    let iy=y+7;
+    infoPairs.forEach(([k,v])=>{
+      doc.setFontSize(7);doc.setFont('helvetica','bold');doc.setTextColor(100,100,100);
+      doc.text(k+':',m+7,iy);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);
+      doc.text(v.slice(0,85),m+34,iy);
+      iy+=4.8;
+    });
+    y+=36;
+
+    // ── Summary counts row ───────────────────────────────────────────────────
+    const cnts=[
+      {l:'CRITICAL',v:sm.criticalCount||0,  r:220,g:38, b:38 },
+      {l:'HIGH',    v:sm.highCount||0,       r:234,g:88, b:12 },
+      {l:'MEDIUM',  v:sm.mediumCount||0,     r:202,g:138,b:4  },
+      {l:'LOW',     v:sm.lowCount||0,        r:22, g:163,b:74 },
+      {l:'SECRETS', v:sm.secretCount||0,     r:147,g:51, b:234},
+      {l:'MISCONF', v:sm.misconfigCount||0,  r:16, g:185,b:129},
+    ];
+    const bw=(W-m*2-cnts.length*2)/cnts.length;
+    cnts.forEach((c,i)=>{
+      const bx=m+i*(bw+2);
+      // White card with coloured top border
+      doc.setFillColor(255,255,255);doc.roundedRect(bx,y,bw,16,1.5,1.5,'F');
+      doc.setDrawColor(220,220,220);doc.setLineWidth(.25);doc.roundedRect(bx,y,bw,16,1.5,1.5,'S');
+      // Coloured top bar
+      doc.setFillColor(c.r,c.g,c.b);doc.roundedRect(bx,y,bw,2.5,1,1,'F');
+      // Count number
+      doc.setFontSize(14);doc.setFont('helvetica','bold');doc.setTextColor(c.r,c.g,c.b);
+      doc.text(String(c.v),bx+bw/2,y+10.5,{align:'center'});
+      // Label
+      doc.setFontSize(5.5);doc.setFont('helvetica','bold');doc.setTextColor(130,130,130);
+      doc.text(c.l,bx+bw/2,y+14.5,{align:'center'});
+    });
+    y+=22;
+
+    // ═══════════════════════════════════════════════════════════
+    // SECTIONS — clean white tables, coloured severity text
+    // ═══════════════════════════════════════════════════════════
+    const results=scan.trivyReport?.Results||[];
+
+    const sevColor=(s)=>{
+      const u=(s||'').toUpperCase();
+      if(u==='CRITICAL')return[220,38,38];
+      if(u==='HIGH')    return[234,88,12];
+      if(u==='MEDIUM')  return[202,138,4];
+      if(u==='LOW')     return[22,163,74];
+      return[100,100,100];
+    };
+
+    const addSection=(title,rows,cols,colW)=>{
+      if(!rows.length)return;
+      chkY(22);
+      // Orange accent bar
+      doc.setFillColor(255,107,53);doc.rect(m,y,3,7,'F');
+      // Section title — bold, 11pt
+      doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);
+      doc.text(title,m+7,y+5.5);
+      // Count badge — right aligned, same row, smaller grey text
+      const cnt=`${rows.length} finding${rows.length!==1?'s':''}`;
+      doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);
+      doc.text(cnt,W-m,y+5.5,{align:'right'});
+      y+=11;
+
+      doc.autoTable({
+        startY:y,
+        head:[cols],
+        body:rows,
+        margin:{left:m,right:m},
+        styles:{
+          fontSize:7,
+          cellPadding:2.8,
+          overflow:'ellipsize',
+          textColor:[50,50,50],
+          lineColor:[220,220,220],
+          lineWidth:.2,
+          fillColor:[255,255,255],
+        },
+        headStyles:{
+          fillColor:[248,249,250],
+          textColor:[80,80,80],
+          fontStyle:'bold',
+          fontSize:6.5,
+          lineColor:[210,210,210],
+        },
+        alternateRowStyles:{fillColor:[252,252,252]},
+        columnStyles:Object.fromEntries(colW.map((w,i)=>[i,{cellWidth:w}])),
+        didParseCell:(d)=>{
+          if(d.section==='body'){
+            // colour severity column text
+            const raw=String(d.row.raw[d.column.index]||'');
+            const sc=sevColor(raw);
+            if(['CRITICAL','HIGH','MEDIUM','LOW'].includes(raw.toUpperCase())){
+              d.cell.styles.textColor=sc;
+              d.cell.styles.fontStyle='bold';
+            }
+          }
+        },
+        theme:'grid',
+      });
+      y=doc.lastAutoTable.finalY+8;
+    };
+
+    // Vulnerabilities
+    const vrows=[];
+    for(const r of results)
+      for(const v of r.Vulnerabilities||[])
+        vrows.push([v.VulnerabilityID||'',r.Target||'',v.PkgName||'',v.InstalledVersion||'',v.FixedVersion||'—',(v.Severity||'').toUpperCase(),(v.Title||'').slice(0,52)]);
+    addSection(`Vulnerabilities`,vrows,['CVE ID','Target','Package','Installed','Fixed In','Severity','Title'],[28,26,22,17,17,15,47]);
+
+    // Secrets
+    const srows=[];
+    for(const r of results)
+      for(const s of r.Secrets||[]){
+        const ls=s.StartLine||s.Line||null,le=s.EndLine||ls;
+        const lr=ls?(le&&le!==ls?`L${ls}-${le}`:`L${ls}`):'—';
+        srows.push([r.Target||'',s.RuleID||'',s.Title||'',s.Category||'—',lr,(s.Severity||'').toUpperCase()]);
+      }
+    addSection(`Secrets`,srows,['File / Target','Rule ID','Title','Category','Line','Severity'],[38,24,44,22,13,15]);
+
+    // Misconfigurations
+    const mrows=[];
+    for(const r of results)
+      for(const mc of r.Misconfigurations||[])
+        mrows.push([mc.ID||'',mc.Type||'—',(mc.Title||'').slice(0,60),(mc.Severity||'').toUpperCase(),mc.Status||'—']);
+    addSection(`Misconfigurations`,mrows,['ID','Type','Title','Severity','Status'],[20,26,76,15,18]);
+
+    // No findings at all
+    if(!vrows.length&&!srows.length&&!mrows.length){
+      chkY(20);
+      doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(22,163,74);
+      doc.text('✓  No findings detected — target is clean.',m,y+8);
+    }
+
+    // Footers on all pages
+    addFooter();
+
+    const fn=(scan.target||'scan').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,40);
+    doc.save(`VaultHound_${fn}_${Date.now()}.pdf`);
+  }catch(e){toast('PDF export failed: '+e.message,'err');console.error(e)}
+  finally{document.getElementById('pdfBtn').textContent='⬇ Export PDF';document.getElementById('pdfBtn').disabled=false}
+}
+
+// INIT
+(async function(){
+  setLoad(0,'Starting VaultHound…');
+  await sleep(250);
+  await fetchData(true);
+  setInterval(()=>{if(!refreshing)fetchData(false)},300000); // auto-refresh every 5 min
+})();
+</script>
+</body>
+</html>
