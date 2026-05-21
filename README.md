@@ -15,7 +15,7 @@
 [![Trivy](https://img.shields.io/badge/Powered%20by-Trivy-1904DA?style=flat-square)](https://trivy.dev)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-No%20SaaS-ff6b35?style=flat-square)]()
 
-![VaultHound Dashboard](images/dashboard.png)
+![VaultHound Dashboard](images/VaultHound-Dashboard.png)
 
 > **No cloud accounts. No SaaS subscriptions. No credentials shipped anywhere.**
 > VaultHound runs on your own infrastructure — a master server collects findings from agents installed on any Linux machine, and displays everything in a single dark-theme dashboard.
