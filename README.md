@@ -153,14 +153,14 @@ vaulthound-agent --dir /var/www/html
 
 ## Dashboard
 
-![Dashboard Overview](images/overview.png)
+![Dashboard Overview](images/VaultHound-Dashboard.png)
 
 The dashboard is a single self-contained HTML file served directly by the master server — no build step, no npm, no bundler.
 
 | Panel | Description |
 |-------|-------------|
 | **Overview cards** | Total scans, active agents, critical/high/medium/low/secrets/misconfigs totals |
-| **Severity trend** | 14-day line chart of findings by severity |
+| **Severity trend** | Daily/Weekly/Monthly chart of findings by severity |
 | **Breakdown bars** | Proportional severity bars across all scans |
 | **Recent activity** | Latest scans from all agents with target, type, critical, high counts |
 | **Top vulnerable targets** | Ranked by total findings |
@@ -168,6 +168,8 @@ The dashboard is a single self-contained HTML file served directly by the master
 | **Agent registry** | All connected agents with hostname, OS, last seen, scan count |
 
 ### Scan Detail View
+
+![View Report](images/VaultHopund-View-Report.png)
 
 Click **View** on any scan to open the detail panel:
 
@@ -181,6 +183,8 @@ Click **View** on any scan to open the detail panel:
 
 ## What Gets Scanned
 
+![Scan Report](images/VaultHopund-Scan-History.png)
+
 | Target Type | Flag | Vulnerabilities | Secrets | Misconfigurations |
 |-------------|------|:-:|:-:|:-:|
 | Docker image | `--image nginx:latest` | ✅ | ✅ | ❌ |
@@ -191,6 +195,9 @@ Click **View** on any scan to open the detail panel:
 Trivy detects vulnerabilities in:
 - **OS packages**: Alpine, Ubuntu, Debian, RHEL, CentOS, Amazon Linux
 - **Language packages**: npm, pip, Maven, Gradle, Go modules, Cargo, RubyGems, NuGet, Composer
+
+## Exported PDF Report
+![PDF Report](images/VaultHopund-PDF-Report.png)
 
 ---
 
